@@ -1,0 +1,168 @@
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.util.LinkedList;
+import java.util.Random;
+
+public class SnakeGame extends JPanel implements ActionListener, KeyListener {
+    static final int TILE = 25;
+    static final int COLS = 24;
+    static final int ROWS = 24;
+
+    private final LinkedList<Point> snake = new LinkedList<>();
+    private final Random random = new Random();
+    private final Timer timer = new Timer(120, this);
+
+    private Point food;
+    private int dx, dy;          // current direction
+    private int nextDx, nextDy;  // queued direction (prevents instant reversal)
+    private int score;
+    private boolean gameOver;
+
+    public SnakeGame() {
+        setPreferredSize(new Dimension(COLS * TILE, ROWS * TILE));
+        setBackground(new Color(24, 28, 34));
+        setFocusable(true);
+        addKeyListener(this);
+        reset();
+        timer.start();
+    }
+
+    private void reset() {
+        snake.clear();
+        int cx = COLS / 2, cy = ROWS / 2;
+        for (int i = 0; i < 3; i++) snake.add(new Point(cx - i, cy));
+        dx = nextDx = 1;
+        dy = nextDy = 0;
+        score = 0;
+        gameOver = false;
+        timer.setDelay(120);
+        spawnFood();
+    }
+
+    private void spawnFood() {
+        do {
+            food = new Point(random.nextInt(COLS), random.nextInt(ROWS));
+        } while (snake.contains(food));
+    }
+
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        if (!gameOver) step();
+        repaint();
+    }
+
+    private void step() {
+        dx = nextDx;
+        dy = nextDy;
+        Point head = snake.getFirst();
+        Point newHead = new Point(head.x + dx, head.y + dy);
+
+        // wall collision
+        if (newHead.x < 0 || newHead.y < 0 || newHead.x >= COLS || newHead.y >= ROWS) {
+            gameOver = true;
+            return;
+        }
+
+        boolean ate = newHead.equals(food);
+        if (!ate) snake.removeLast(); // tail moves away unless we grow
+
+        // self collision
+        if (snake.contains(newHead)) {
+            gameOver = true;
+            return;
+        }
+
+        snake.addFirst(newHead);
+
+        if (ate) {
+            score++;
+            timer.setDelay(Math.max(50, 120 - score * 3)); // speed up
+            spawnFood();
+        }
+    }
+
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        Graphics2D g2 = (Graphics2D) g;
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        // grid
+        g2.setColor(new Color(34, 39, 46));
+        for (int i = 0; i <= COLS; i++) g2.drawLine(i * TILE, 0, i * TILE, ROWS * TILE);
+        for (int j = 0; j <= ROWS; j++) g2.drawLine(0, j * TILE, COLS * TILE, j * TILE);
+
+        // food
+        g2.setColor(new Color(235, 87, 87));
+        g2.fillOval(food.x * TILE + 3, food.y * TILE + 3, TILE - 6, TILE - 6);
+
+        // snake
+        for (int i = 0; i < snake.size(); i++) {
+            Point p = snake.get(i);
+            g2.setColor(i == 0 ? new Color(120, 230, 140) : new Color(60, 180, 90));
+            g2.fillRoundRect(p.x * TILE + 1, p.y * TILE + 1, TILE - 2, TILE - 2, 8, 8);
+        }
+
+        // score
+        g2.setColor(Color.WHITE);
+        g2.setFont(new Font("SansSerif", Font.BOLD, 16));
+        g2.drawString("Score: " + score, 10, 20);
+
+        if (gameOver) {
+            g2.setColor(new Color(0, 0, 0, 170));
+            g2.fillRect(0, 0, getWidth(), getHeight());
+            g2.setColor(Color.WHITE);
+            g2.setFont(new Font("SansSerif", Font.BOLD, 36));
+            drawCentered(g2, "Game over", getHeight() / 2 - 10);
+            g2.setFont(new Font("SansSerif", Font.PLAIN, 18));
+            drawCentered(g2, "Score " + score + "  -  press Enter to restart", getHeight() / 2 + 25);
+        }
+    }
+
+
+	private void drawCentered(Graphics2D g2, String text, int y) {
+        int w = g2.getFontMetrics().stringWidth(text);
+        g2.drawString(text, (getWidth() - w) / 2, y);
+    }
+
+
+	@Override
+    public void keyPressed(KeyEvent e) {
+        switch (e.getKeyCode()) {
+            case KeyEvent.VK_UP:
+            case KeyEvent.VK_W:
+                if (dy == 0) { nextDx = 0; nextDy = -1; }
+                break;
+            case KeyEvent.VK_DOWN:
+            case KeyEvent.VK_S:
+                if (dy == 0) { nextDx = 0; nextDy = 1; }
+                break;
+            case KeyEvent.VK_LEFT:
+            case KeyEvent.VK_A:
+                if (dx == 0) { nextDx = -1; nextDy = 0; }
+                break;
+            case KeyEvent.VK_RIGHT:
+            case KeyEvent.VK_D:
+                if (dx == 0) { nextDx = 1; nextDy = 0; }
+                break;
+            case KeyEvent.VK_ENTER:
+                if (gameOver) reset();
+                break;
+        }
+    }
+
+    @Override public void keyReleased(KeyEvent e) { }
+    @Override public void keyTyped(KeyEvent e) { }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            JFrame frame = new JFrame("Snake");
+            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            frame.setResizable(false);
+            frame.add(new SnakeGame());
+            frame.pack();
+            frame.setLocationRelativeTo(null);
+            frame.setVisible(true);
+        });
+    }
+}
